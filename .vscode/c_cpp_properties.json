@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "browse": {
+                "databaseFilename": "",
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/home/jiang/para_ws/devel/include/**",
+                "/opt/ros/melodic/include/**",
+                "/home/jiang/micro_ws/src/gripper_control/include/**",
+                "/home/jiang/para_ws/src/ppr_stack/laser_sensor3/include/**",
+                "/home/jiang/micro_ws/src/micro_manipulate/include/**",
+                "/home/jiang/para_ws/src/ppr_stack/ppr_control/include/**",
+                "/home/jiang/para_ws/src/ppr_stack/stm32_hw/include/**",
+                "/usr/include/**"
+            ],
+            "name": "ROS",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++14"
+        }
+    ],
+    "version": 4
+}

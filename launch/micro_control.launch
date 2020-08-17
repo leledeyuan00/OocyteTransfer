@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+    <node name="micro_manipulate" pkg="micro_manipulate" type="micro_manipulate_hw"  output="log" respawn="false" respawn_delay="0">
+        <rosparam command="load" file="$(find micro_manipulate)/config/port.yaml"/>
+    </node>
+
+    <rosparam command="load" file="$(find micro_manipulate)/config/controller.yaml"/>
+     <node name="controller_spawner" pkg="controller_manager" type="spawner"  output="screen" respawn="false" respawn_delay="0"
+        args="joint_state_controller
+                    joint1_position_controller
+                    joint2_position_controller
+                    joint3_position_controller
+                    "/>
+</launch>
