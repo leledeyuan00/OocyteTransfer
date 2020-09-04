@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   hardware_interface
   controller_manager
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -56,11 +57,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  camera_cmd.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,10 +70,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -107,9 +107,10 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES micro_manipulate
- CATKIN_DEPENDS roscpp rospy std_msgs
+ CATKIN_DEPENDS roscpp rospy std_msgs 
   controller_manager
   hardware_interface
+  message_runtime
 #  DEPENDS system_lib
 )
 
@@ -148,6 +149,21 @@ target_link_libraries(${PROJECT_NAME}_hw
   ${catkin_LIBRARIES}
   ${PROJECT_NAME}_driver
 )
+
+add_executable(micro_teleop src/micro_teleop.cpp)
+target_link_libraries(micro_teleop ${catkin_LIBRARIES})
+
+
+catkin_install_python(PROGRAMS python/camera.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+add_executable(auto_camera
+  src/auto_camera.cpp
+)
+target_link_libraries(auto_camera ${catkin_LIBRARIES})
+add_dependencies(auto_camera micro_manipulate_gencpp)
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
