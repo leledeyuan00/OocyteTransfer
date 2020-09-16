@@ -60,6 +60,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   camera_cmd.srv
+  camera_servo.srv
 )
 
 ## Generate actions in the 'action' folder
