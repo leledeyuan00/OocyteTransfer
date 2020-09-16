@@ -222,10 +222,13 @@ class FindPosition:
         # carrying_img_path = os.path.join(os.getcwd(), img_dir, str(6) + ".jpg")
         carrying_img = cv2.imread(path)
         # 注意要重新设置 ROI
+        start_time = time.time()
         self.get_carrying_pos(carrying_img)
         res = camera_servoResponse()
         res.pippet = tuple(self._pipet_pos)
         res.carrying = tuple(self.carrying_pos)
+        cal_carrying_pos_time = time.time() - start_time
+        print("caculate carrying position time: {0}".format(cal_carrying_pos_time))
         return res
 
     def position_get_server(self):

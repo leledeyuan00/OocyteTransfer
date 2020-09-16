@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   controller_manager
   message_generation
 )
+find_package(Eigen3 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -131,6 +132,9 @@ include/${PROJECT_NAME}
 
 link_directories(lib ${catkin_LIB_DIRS})
 
+include_directories(${EIGEN3_INCLUDE_DIR})
+add_definitions(${EIGEN_DEFINITIONS})
+
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -164,6 +168,15 @@ add_executable(auto_camera
 )
 target_link_libraries(auto_camera ${catkin_LIBRARIES})
 add_dependencies(auto_camera micro_manipulate_gencpp)
+
+add_executable(vision_servo
+  src/vision_servo.cpp
+)
+target_link_libraries(vision_servo
+  ${catkin_LIBRARIES}
+)
+add_dependencies(vision_servo micro_manipulate_gencpp)
+
 
 
 ## Add cmake target dependencies of the library
