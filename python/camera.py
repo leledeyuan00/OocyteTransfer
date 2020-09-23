@@ -9,7 +9,6 @@ from PIL import Image
 from micro_manipulate.srv import *
 
 
-#!/usr/bin/env python
 import rospy
 
 class ROSNode: 

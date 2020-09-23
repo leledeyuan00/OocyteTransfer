@@ -31,8 +31,6 @@ private:
     ros::NodeHandle nh_;
     ros::ServiceClient pixel_parse_srv_;
 
-    ros::Rate loop_rate_;
-
     micro_manipulate::camera_servo camera_msg_;
 
     

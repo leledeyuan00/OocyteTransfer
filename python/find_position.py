@@ -1,4 +1,4 @@
-"""查找图片中的吸管和载杆位置
+"""查找图片中的玻璃管和载杆位置
 """
 
 import time
@@ -9,10 +9,13 @@ from matplotlib import pyplot as plt
 import numpy as np
 from collections import defaultdict
 
+## camera
+import gxipy as gx
+from PIL import Image
+
 ## ros
-# from 3axis_platform.srv import camera_cmd,camera_cmdResponse
-from micro_manipulate.srv import *
 import rospy
+from micro_manipulate.msg import *
 
 
 class FindPosition:
@@ -27,7 +30,7 @@ class FindPosition:
         roi_box(List[int]): ROI 长宽,[width, length]
         binaryzation_thre(int): 二值化图像阈值
         fuzzy_len(int): 横向模糊的长度
-        pipet_img(Optional[np.ndarray]): ROI 里二值化后的吸管图，调用 `get_pipet_pos()` 后生成，可以通过显示这个图来判断玻璃管识别的效果
+        pipet_img(Optional[np.ndarray]): ROI 里二值化后的玻璃管图，调用 `get_pipet_pos()` 后生成，可以通过显示这个图来判断玻璃管识别的效果
         pipet_pos(List[int]): 玻璃管的位置, 调用 `get_pipet_pos()` 后生成[row, col]
         carrying_ignor_thre(int): 忽略载杆图像像素的灰度阈值。灰度值大于该值认为是白色背景(255)
         carrying_pos(List[int]): 载杆的位置，调用 `get_carrying_pos()` 后生成[row, col]
@@ -42,6 +45,10 @@ class FindPosition:
         self._pipet_pos: List[int] = [0, 0]
         self._carrying_ignor_thre: int = 70
         self._carrying_pos: List[int] = [0, 0]
+        self._img_dir =  "materials/imgs2"
+        self._resized_size : tuple = (600,800)
+        self.find_init()
+        self.camera_init()
 
     @property
     def roi_center(self) -> List[int]:
@@ -162,8 +169,8 @@ class FindPosition:
             last_col_num = cur_col_num
         if cur_total_num != 0:
             col_intensity[cur_key] = cur_total_num
-        self._pipet_pos[1] = max(col_intensity, key=col_intensity.get)
-        first_row = None
+        self._pipet_pos[1] = max(col_intensity, key=col_intensity.get)   # type: ignore
+        first_row = 0
         for i in range(self._roi_row_range[0], self._roi_row_range[1]):
             if self._pipet_img[i, self._pipet_pos[1]] == 255:
                 first_row = i
@@ -175,7 +182,8 @@ class FindPosition:
         return self._pipet_pos
 
     def get_carrying_pos(self, img: np.ndarray) -> List[int]:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = img
         col_intensity = defaultdict(int)
         last_col_sum = 0
         cur_total_sum = 0
@@ -185,7 +193,7 @@ class FindPosition:
             for i in range(self._roi_row_range[0], self._roi_row_range[1]):
                 if gray[i, j] > self._carrying_ignor_thre or self._pipet_img[i, j] == 255:
                     continue
-                cur_col_sum += gray[i, j] >> 4
+                cur_col_sum += ((255 -gray[i, j]) >> 5)**3
             cur_total_sum += cur_col_sum
             if cur_col_sum != 0:
                 if last_col_sum == 0:
@@ -198,7 +206,7 @@ class FindPosition:
         if cur_total_sum != 0:
             col_intensity[cur_key] = cur_total_sum
             cur_total_sum = 0
-        self._carrying_pos[1] = max(col_intensity, key=col_intensity.get)
+        self._carrying_pos[1] = max(col_intensity, key=col_intensity.get)  # type: ignore
         min_value = 256
         min_value_idx = 0
         for i in range(self._roi_row_range[0], self._roi_row_range[1]):
@@ -216,90 +224,78 @@ class FindPosition:
                 self._carrying_pos[0] = int((i + first_row) / 2)
                 break
         return self._carrying_pos
-    
-    def position_handle(self,req):
-        path = req.path
-        # carrying_img_path = os.path.join(os.getcwd(), img_dir, str(6) + ".jpg")
-        carrying_img = cv2.imread(path)
-        # 注意要重新设置 ROI
-        start_time = time.time()
-        self.get_carrying_pos(carrying_img)
-        res = camera_servoResponse()
-        res.pippet = tuple(self._pipet_pos)
-        res.carrying = tuple(self.carrying_pos)
-        cal_carrying_pos_time = time.time() - start_time
-        print("caculate carrying position time: {0}".format(cal_carrying_pos_time))
-        return res
 
-    def position_get_server(self):
-        rospy.init_node('pixel_get_server')
-        srv = rospy.Service('pixel_get',camera_servo,self.position_handle)
-        print("Ready to get image pixel.")
-        rospy.spin()
+    ## use a pre-catched img to get pippet pos
+    def find_init(self):
+        pipet_img_path = os.path.join(os.getcwd(), self._img_dir, str(6) + ".bmp")
+        print(pipet_img_path)
+        pipet_img = cv2.imread(pipet_img_path)
+        self._resized_size = (600, 800)
+        pipet_img_resized = cv2.resize(pipet_img, (self._resized_size[1], self._resized_size[0]))
+        rows = pipet_img.shape[0]
+        cols = pipet_img.shape[1]
+        row_rate = rows/self._resized_size[0]
+        col_rate = cols/self._resized_size[1]
+        self.binaryzation_thre = 40
+        self.roi_center = [350, 270]
+        self.roi_box = [130, 400]
+        pipet_pos = self.get_pipet_pos(pipet_img_resized)
+        real_pipet_pos = [0, 0]
+        real_pipet_pos[0] = int(pipet_pos[0]*row_rate)
+        real_pipet_pos[1] = int(pipet_pos[1]*col_rate)
+
+    def camera_init(self):
+        self._device_manager = gx.DeviceManager()
+        dev_num, dev_info_list = self._device_manager.update_device_list()
+        if dev_num == 0:
+            sys.exit(1)
+        strSN = dev_info_list[0].get("sn")
+        self._cam = self._device_manager.open_device_by_sn(strSN)
+        self._cam.stream_on()
+        return self._cam
+
+    def camera_acquire(self):
+        self._cam.TriggerSoftware.send_command()
+        raw_image = self._cam.data_stream[0].get_image()
+        numpy_image = raw_image.get_numpy_array()
+        if numpy_image is None:
+            return None
+        else:
+            img = cv2.resize(numpy_image, (self._resized_size[1], self._resized_size[0]))
+            self.roi_center = [int(self._resized_size[0] * 1 / 2), int(self._resized_size[1]*1 / 2)]
+            self.roi_box = [int(self._resized_size[0]*2/3), int(self._resized_size[1]*2/3)]
+        return img
+        # carrying_img_path = os.path.join(os.getcwd(), self._img_dir, str(6) + ".bmp")
+        # carrying_img = cv2.imread(carrying_img_path)
+        # img = cv2.resize(carrying_img, (self._resized_size[1], self._resized_size[0]))
+        # self.roi_center = [int(self._resized_size[0] * 1 / 2), int(self._resized_size[1]*1 / 2)]
+        # self.roi_box = [int(self._resized_size[0]*2/3), int(self._resized_size[1]*2/3)]
+        
+        # return img
+
+    def ros_init(self):
+        rospy.init_node("cameraPub")
+        rospy.loginfo("Starting camera node as cameraPub.")
+        
+        camera_pub = rospy.Publisher("camera_pub", pospub, queue_size=10)
+        pub_msgs = pospub()
+        pub_msgs.pippet = (self._pipet_pos[0],self._pipet_pos[1])
+
+        rate = rospy.Rate(1)
+        while not rospy.is_shutdown():
+            img = self.camera_acquire()
+            if img is None:
+                rospy.loginfo("camera recieve img is None. Please check your device")
+            else:
+                carrying_pos = self.get_carrying_pos(img)
+                pub_msgs.carrying = (carrying_pos[0],carrying_pos[1])
+                camera_pub.publish(pub_msgs)
+
+            rate.sleep()
+        
+        self._cam.close_device()
+
 
 if __name__ == "__main__":
-    # 获得图片中玻璃管的位置
-    img_dir = "materials/imgs"
-    pipet_img_path = os.path.join(os.getcwd(), img_dir, "initial" + ".jpg")
-    print(pipet_img_path)
-    pipet_img = cv2.imread(pipet_img_path)
-    rows = pipet_img.shape[0]
-    cols = pipet_img.shape[1]
-
-    start_time = time.time()
     fp = FindPosition()
-    fp.roi_center = [350, 270]
-    fp.roi_box = [130, 400]
-    pipet_pos = fp.get_pipet_pos(pipet_img)
-    cal_pipet_pos_time = time.time() - start_time
-    print("caculate pipet position time: {0}".format(cal_pipet_pos_time))
-
-    # show image
-    # for i in range(rows):
-    #     pipet_img[i, pipet_pos[1]-1] = [255, 0, 0]
-    #     pipet_img[i, pipet_pos[1]] = [255, 0, 0]
-    #     pipet_img[i, pipet_pos[1] + 1] = [255, 0, 0]
-    # for j in range(cols):
-    #     pipet_img[pipet_pos[0]-1, j] = [255, 0, 0]
-    #     pipet_img[pipet_pos[0], j] = [255, 0, 0]
-    #     pipet_img[pipet_pos[0]+1, j] = [255, 0, 0]
-    # plt.imshow(pipet_img)
-    # plt.figure()
-    # plt.imshow(fp.pipet_img, cmap='gray')
-
-    # 计算其他图片载杆位置
-    carrying_img_path = pipet_img_path
-    # carrying_img_path = os.path.join(os.getcwd(), img_dir, str(6) + ".jpg")
-    carrying_img = cv2.imread(carrying_img_path)
-    # 注意要重新设置 ROI
-    fp.roi_center = [rows / 2, cols / 2]
-    fp.roi_box = [int(rows*2/3), int(cols*2/3)]
-    start_time = time.time()
-    carrying_pos = fp.get_carrying_pos(carrying_img)
-    cal_carrying_pos_time = time.time() - start_time
-    print("caculate carrying position time: {0}".format(cal_carrying_pos_time))
-    # print("carrying position", carrying_pos[0], carrying_pos[1])
-    # print("pipet position", pipet_pos[0], pipet_pos[1])
-    # show image
-    # plt.figure()
-    # for i in range(rows):
-    #     carrying_img[i, pipet_pos[1]-1] = [255, 0, 0]
-    #     carrying_img[i, pipet_pos[1]] = [255, 0, 0]
-    #     carrying_img[i, pipet_pos[1] + 1] = [255, 0, 0]
-    # for j in range(cols):
-    #     carrying_img[pipet_pos[0]-1, j] = [255, 0, 0]
-    #     carrying_img[pipet_pos[0], j] = [255, 0, 0]
-    #     carrying_img[pipet_pos[0] + 1, j] = [255, 0, 0]
-
-    # for i in range(rows):
-    #     carrying_img[i, carrying_pos[1]-1] = [0, 255,  0]
-    #     carrying_img[i, carrying_pos[1]] = [0, 255,  0]
-    #     carrying_img[i, carrying_pos[1] + 1] = [0, 255,  0]
-    # for j in range(cols):
-    #     carrying_img[carrying_pos[0]-1, j] = [0, 255,  0]
-    #     carrying_img[carrying_pos[0], j] = [0, 255,  0]
-    #     carrying_img[carrying_pos[0]+1, j] = [0, 255,  0]
-    # plt.imshow(carrying_img)
-    # plt.show()
-    fp.position_get_server()
-
+    fp.ros_init()
