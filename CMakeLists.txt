@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   controller_manager
   message_generation
   sensor_msgs
+  control_toolbox
 )
 find_package(Eigen3 REQUIRED)
 
