@@ -11,17 +11,25 @@
 #include <sstream>
 
 /* privita */
-#include "micro_manipulate/camera_servo.h"
+#include "micro_manipulate/pospub.h"
+#include "std_msgs/Float64.h"
+#include "sensor_msgs/JointState.h"
+
+struct joint
+{
+    float cmd;
+    float stat;
+    float error;
+};
 
 
 class VisionServo
 {
 public:
-    VisionServo(ros::NodeHandle &nh):nh_(nh)
-    {
-        init();
-    }
+    VisionServo(ros::NodeHandle &nh);
     ~VisionServo(){};
+
+    void calibrate();
 
     void run();
 
@@ -29,13 +37,20 @@ private:
     /* variable */
     /* ros */
     ros::NodeHandle nh_;
-    ros::ServiceClient pixel_parse_srv_;
+    ros::Subscriber camera_sub_;
+    ros::Subscriber joint_sub_;
+    std::vector<ros::Publisher> motor_pub_;    
+    micro_manipulate::pospub camera_msgs_;
 
-    micro_manipulate::camera_servo camera_msg_;
-
-    
+    /* algorithm */
+    std::vector<joint> joint_;
     /* function */
     void init();
+    void cameraCallback(const micro_manipulate::pospub &msg);
+    void jointCallback(const sensor_msgs::JointStateConstPtr &msg);
+    void pub_msgs(void);
+
+    const float init_pos_[3];
 };
 
 

@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   hardware_interface
   controller_manager
   message_generation
+  sensor_msgs
 )
 find_package(Eigen3 REQUIRED)
 

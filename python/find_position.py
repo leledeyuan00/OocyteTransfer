@@ -8,6 +8,7 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 from collections import defaultdict
+from numba import jit
 
 ## camera
 import gxipy as gx
@@ -16,6 +17,55 @@ from PIL import Image
 ## ros
 import rospy
 from micro_manipulate.msg import *
+
+@jit(nopython=True)
+def carrying_for1(gray,roi_col_range0,roi_col_range1,roi_row_range0,roi_row_range1,carrying_ignor_thre,pipet_img):
+    last_col_sum = 0
+    cur_total_sum = 0
+    cur_key = []
+    col_intensity = []
+    for j in range(roi_col_range0, roi_col_range1):
+        cur_col_points = 0
+        cur_col_sum = 0
+        for i in range(roi_row_range0, roi_row_range1):
+            if gray[i, j] > carrying_ignor_thre or pipet_img[i, j] == 255:
+                continue
+            cur_col_points+=1
+            cur_col_sum += ((255 -gray[i, j]) >> 5)**3
+        if last_col_sum == 0 and cur_col_points < 3:  # 起始列的点数需要大于3, 可以作为可调参数
+            cur_col_sum = 0
+        cur_total_sum += cur_col_sum
+        if cur_col_sum != 0:
+            if last_col_sum == 0:
+                cur_key.append(j)
+        else:
+            if cur_total_sum != 0:
+                col_intensity.append(cur_total_sum)
+                # col_intensity[cur_key] = cur_total_sum
+                cur_total_sum = 0
+        last_col_sum = cur_col_sum
+    return cur_key,cur_total_sum,col_intensity
+
+@jit(nopython = True)
+def carrying_for2(gray,roi_row_range0,roi_row_range1,min_value,carrying_pos):
+    for i in range(roi_row_range0, roi_row_range1):
+        if gray[i, carrying_pos] < min_value:
+            min_value = gray[i, carrying_pos]
+            min_value_idx = i
+    return min_value,min_value_idx
+
+@jit(nopython = True)
+def carrying_for3(gray,min_value_idx,diff_value,min_value,carrying_pos,roi_row_range):
+    for i in range(min_value_idx, roi_row_range, -1):
+        if gray[i, carrying_pos] > min_value + diff_value:
+            return i
+
+@jit(nopython = True)
+def carrying_for4(gray,min_value_idx,first_row,diff_value,min_value,roi_row_range,carrying_pos1):
+    for i in range(min_value_idx, roi_row_range):
+        if gray[i, carrying_pos1] > min_value + diff_value:
+            carrying_pos0 = int((i + first_row) / 2)
+            return carrying_pos0
 
 
 class FindPosition:
@@ -47,8 +97,8 @@ class FindPosition:
         self._carrying_pos: List[int] = [0, 0]
         self._img_dir =  "materials/imgs2"
         self._resized_size : tuple = (600,800)
-        self.find_init()
         self.camera_init()
+        self.find_init()
 
     @property
     def roi_center(self) -> List[int]:
@@ -111,7 +161,8 @@ class FindPosition:
         return self._carrying_pos
 
     def get_pipet_pos(self, img: np.ndarray) -> List[int]:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = img
         laplacian = cv2.Laplacian(gray, cv2.CV_8U)
         # 使用 ROI 并二值化图像
         for j in range(self._roi_col_range[0], self._roi_col_range[1]):
@@ -169,6 +220,7 @@ class FindPosition:
             last_col_num = cur_col_num
         if cur_total_num != 0:
             col_intensity[cur_key] = cur_total_num
+
         self._pipet_pos[1] = max(col_intensity, key=col_intensity.get)   # type: ignore
         first_row = 0
         for i in range(self._roi_row_range[0], self._roi_row_range[1]):
@@ -180,60 +232,35 @@ class FindPosition:
                 self._pipet_pos[0] = int((i + first_row) / 2)
                 break
         return self._pipet_pos
-
+        
+    
     def get_carrying_pos(self, img: np.ndarray) -> List[int]:
-        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = img
-        col_intensity = defaultdict(int)
-        last_col_sum = 0
-        cur_total_sum = 0
-        cur_key = None
-        for j in range(self._roi_col_range[0], self._roi_col_range[1]):
-            cur_col_sum = 0
-            for i in range(self._roi_row_range[0], self._roi_row_range[1]):
-                if gray[i, j] > self._carrying_ignor_thre or self._pipet_img[i, j] == 255:
-                    continue
-                cur_col_sum += ((255 -gray[i, j]) >> 5)**3
-            cur_total_sum += cur_col_sum
-            if cur_col_sum != 0:
-                if last_col_sum == 0:
-                    cur_key = j
-            else:
-                if cur_total_sum != 0:
-                    col_intensity[cur_key] = cur_total_sum
-                    cur_total_sum = 0
-            last_col_sum = cur_col_sum
+        [cur_key,cur_total_sum,col_intensity] = carrying_for1(gray,self._roi_col_range[0],self._roi_col_range[1],self._roi_row_range[0],self._roi_row_range[1],self._carrying_ignor_thre,self._pipet_img)
         if cur_total_sum != 0:
-            col_intensity[cur_key] = cur_total_sum
             cur_total_sum = 0
-        self._carrying_pos[1] = max(col_intensity, key=col_intensity.get)  # type: ignore
+        self._carrying_pos[1] = cur_key[col_intensity.index(max(col_intensity))]
         min_value = 256
         min_value_idx = 0
-        for i in range(self._roi_row_range[0], self._roi_row_range[1]):
-            if gray[i, self._carrying_pos[1]] < min_value:
-                min_value = gray[i, self._carrying_pos[1]]
-                min_value_idx = i
+        [min_value,min_value_idx] = carrying_for2(gray,self._roi_row_range[0],self._roi_row_range[1],min_value,self._carrying_pos[1])
+
         first_row = None
         diff_value = 5  # 这个色差也可以作为一个可调参数
-        for i in range(min_value_idx, self._roi_row_range[0], -1):
-            if gray[i, self._carrying_pos[1]] > min_value + diff_value:
-                first_row = i
-                break
-        for i in range(min_value_idx, self._roi_row_range[1]):
-            if gray[i, self._carrying_pos[1]] > min_value + diff_value:
-                self._carrying_pos[0] = int((i + first_row) / 2)
-                break
+        # for3
+        first_row = carrying_for3(gray,min_value_idx,diff_value,min_value,self._carrying_pos[1],self._roi_row_range[0])
+        ## for4
+        self._carrying_pos[0] = carrying_for4(gray,min_value_idx,first_row,diff_value,min_value,self._roi_row_range[1],self._carrying_pos[1])
+        # print("self._carrying_pos[0]",self._carrying_pos[0])
+
         return self._carrying_pos
 
     ## use a pre-catched img to get pippet pos
     def find_init(self):
-        pipet_img_path = os.path.join(os.getcwd(), self._img_dir, str(6) + ".bmp")
-        print(pipet_img_path)
-        pipet_img = cv2.imread(pipet_img_path)
+        img = self.camera_acquire()
         self._resized_size = (600, 800)
-        pipet_img_resized = cv2.resize(pipet_img, (self._resized_size[1], self._resized_size[0]))
-        rows = pipet_img.shape[0]
-        cols = pipet_img.shape[1]
+        pipet_img_resized = cv2.resize(img, (self._resized_size[1], self._resized_size[0]))
+        rows = img.shape[0]
+        cols = img.shape[1]
         row_rate = rows/self._resized_size[0]
         col_rate = cols/self._resized_size[1]
         self.binaryzation_thre = 40
@@ -265,13 +292,6 @@ class FindPosition:
             self.roi_center = [int(self._resized_size[0] * 1 / 2), int(self._resized_size[1]*1 / 2)]
             self.roi_box = [int(self._resized_size[0]*2/3), int(self._resized_size[1]*2/3)]
         return img
-        # carrying_img_path = os.path.join(os.getcwd(), self._img_dir, str(6) + ".bmp")
-        # carrying_img = cv2.imread(carrying_img_path)
-        # img = cv2.resize(carrying_img, (self._resized_size[1], self._resized_size[0]))
-        # self.roi_center = [int(self._resized_size[0] * 1 / 2), int(self._resized_size[1]*1 / 2)]
-        # self.roi_box = [int(self._resized_size[0]*2/3), int(self._resized_size[1]*2/3)]
-        
-        # return img
 
     def ros_init(self):
         rospy.init_node("cameraPub")
@@ -281,21 +301,26 @@ class FindPosition:
         pub_msgs = pospub()
         pub_msgs.pippet = (self._pipet_pos[0],self._pipet_pos[1])
 
-        rate = rospy.Rate(1)
+        rate = rospy.Rate(40)
         while not rospy.is_shutdown():
+            start_time = time.time() 
             img = self.camera_acquire()
+            cal_pipet_pos_time = time.time() - start_time
+            # print("running time Duration is {}".format(cal_pipet_pos_time))
             if img is None:
                 rospy.loginfo("camera recieve img is None. Please check your device")
             else:
                 carrying_pos = self.get_carrying_pos(img)
-                pub_msgs.carrying = (carrying_pos[0],carrying_pos[1])
+                if carrying_pos[0] is not None:
+                    pub_msgs.carrying = (carrying_pos[0],carrying_pos[1])
+                
                 camera_pub.publish(pub_msgs)
-
             rate.sleep()
         
         self._cam.close_device()
 
 
 if __name__ == "__main__":
+    
     fp = FindPosition()
     fp.ros_init()
