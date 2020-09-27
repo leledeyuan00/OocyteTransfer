@@ -55,6 +55,7 @@ private:
     Eigen::Matrix2f jaco_raw_;
     Eigen::Vector2f pixel_error_;
     Eigen::Vector2f motor_error_;
+    float start_time_;
     /* function */
     void init();
     void cameraCallback(const micro_manipulate::pospub &msg);

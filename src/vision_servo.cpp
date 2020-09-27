@@ -5,6 +5,7 @@ VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),init_pos_{7,29,5}
     jaco_raw_.resize(2,2);
     pid_controllers_.push_back(control_toolbox::Pid(0.1,0,0)); //x
     pid_controllers_.push_back(control_toolbox::Pid(0.1,0,0)); //y
+    start_time_ = 0;
     init();
 }
 
@@ -35,10 +36,12 @@ void VisionServo::init()
 
 void VisionServo::cameraCallback(const micro_manipulate::pospub &msg)
 {
+    
     joint_[0].vis_stat = msg.carrying[1];
     joint_[1].vis_stat = msg.carrying[0];
     joint_[0].error = (msg.carrying[1] - msg.pippet[1]);
     joint_[1].error = (msg.carrying[0] - msg.pippet[0]);
+    start_time_ = 0;
     // ROS_INFO("Eror is %f, %f",joint_[0].error,joint_[1].error);
     // ROS_INFO("peppet is [%f %f] \r\n carrying is [%f %f]\r\n", msg.pippet[0],msg.pippet[1],msg.carrying[0],msg.carrying[1]);
 }
@@ -131,18 +134,24 @@ void VisionServo::run()
 {
     int init_cout = 0;
     bool init_flag= false;
-    ros::Rate loop_rate(40);
+    float loop_duration = 0.01;
+    float rate = 1.0/loop_duration;
+    ros::Rate loop_rate(rate);
     ros::Time last_time,curr_time;
     ros::Duration control_duration;
+    // for Catch a Jacobian raw
+    calibrate();
+
+    // run loop
     while (ros::ok())
     {
         /* code for loop body */
         // calibrate
         curr_time = ros::Time::now();
         control_duration = curr_time - last_time;
-        if (init_cout > 80 && !init_flag)
+        // for a stable loop duration
+        if (init_cout > 10 && !init_flag)
         {
-            calibrate();
             init_flag = true;
         }
         else init_cout++;
@@ -172,8 +181,8 @@ int main(int argc, char *argv[])
     /* code */
     ros::init(argc, argv, "vision_servo");
     ros::NodeHandle nh;
-    // ros::AsyncSpinner spinner(3);
-    // spinner.start();
+    ros::AsyncSpinner spinner(3);
+    spinner.start();
 
     VisionServo vs(nh);
     vs.run();
