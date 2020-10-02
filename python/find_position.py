@@ -278,6 +278,15 @@ class FindPosition:
             sys.exit(1)
         strSN = dev_info_list[0].get("sn")
         self._cam = self._device_manager.open_device_by_sn(strSN)
+         # set exposure
+        # self._cam.ExposureTime.set(10000)
+
+        # set gain
+        # self._cam.Gain.set(10.0)
+
+        # send software trigger command
+        self._cam.TriggerMode.set(gx.GxSwitchEntry.ON)
+        self._cam.TriggerSource.set(gx.GxTriggerSourceEntry.SOFTWARE)
         self._cam.stream_on()
         return self._cam
 
@@ -306,7 +315,7 @@ class FindPosition:
             start_time = time.time() 
             img = self.camera_acquire()
             cal_pipet_pos_time = time.time() - start_time
-            # print("running time Duration is {}".format(cal_pipet_pos_time))
+            print("running time Duration is {}".format(cal_pipet_pos_time))
             if img is None:
                 rospy.loginfo("camera recieve img is None. Please check your device")
             else:

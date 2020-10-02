@@ -1,6 +1,6 @@
 #include "vision_servo.h"
 
-VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),init_pos_{5,26,12}
+VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),name_("micro_manipulate")
 {
     jaco_raw_.resize(2,2);
     pid_controllers_.push_back(control_toolbox::Pid(0.05,0,0.001)); //x
@@ -17,25 +17,24 @@ void VisionServo::init()
     camera_sub_ = nh_.subscribe("/camera_pub", 10, &VisionServo::cameraCallback,this);
     joint_sub_ = nh_.subscribe("/joint_states", 10, &VisionServo::jointCallback,this);
     state_machine_srv_ = nh_.advertiseService("/servo_sm", &VisionServo::switch_state_machine_service,this);
-    motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint3_position_controller/command", 10));
-    motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint2_position_controller/command", 10));
     motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint1_position_controller/command", 10));
+    motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint2_position_controller/command", 10));
+    motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint3_position_controller/command", 10));
     joint_.resize(3);
+    if (!nh_.getParam(name_+"/config_id", config_id_))
+        { ROS_ERROR("No num param"); }
+    for (size_t i = 0; i < 3; i++)
+    {
+        init_pos_[i] = config_id_[i]["init_pos"];
+        joint_[i].cmd = init_pos_[i];
+    }
+    
 
     while (!motor_pub_[0].getNumSubscribers())
     {
-        
+        // must run after roslaunch micro_manipulate micro_control.launch
     }
     ros::Duration(0.5).sleep();
-    for (size_t i = 0; i < motor_pub_.size(); i++)
-    {
-        std_msgs::Float64 cmd;
-        joint_[i].cmd = init_pos_[i];
-        cmd.data = joint_[i].cmd;
-        motor_pub_[i].publish(cmd);
-        ros::spinOnce();
-        ros::Duration(0.001).sleep();
-    }  
 }
 
 bool VisionServo::switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res)
@@ -63,7 +62,7 @@ void VisionServo::jointCallback(const sensor_msgs::JointStateConstPtr &msg)
 {
     for (size_t i = 0; i < joint_.size(); i++)
     {
-        joint_[2-i].stat = msg->position[i];
+        joint_[i].stat = msg->position[i];
     }
     
 }

@@ -58,6 +58,8 @@ private:
     };
 
     std::vector<JOINT> joint_;
+    double init_pos_[3];
+
     /* function */
     int ros_init();
     int motor_init();

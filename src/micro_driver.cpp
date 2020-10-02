@@ -39,7 +39,7 @@ int MyDriver::read(double *pos,double *vel,double *eft)
     *pos = pos_;
     // *vel = vel_;
     // *eft = eft_;
-    ros::Duration(cm_sleep).sleep();
+    // ros::Duration(cm_sleep).sleep();
     return 0;
 }
 

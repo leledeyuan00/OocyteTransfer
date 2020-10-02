@@ -48,6 +48,9 @@ private:
     ros::Subscriber joint_sub_;
     std::vector<ros::Publisher> motor_pub_;    
     micro_manipulate::pospub camera_msgs_;
+    XmlRpc::XmlRpcValue config_id_;
+    std::string name_;
+
 
     ros::ServiceServer state_machine_srv_;    
 
@@ -71,7 +74,7 @@ private:
     void pub_msgs(void);
     bool switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res);
 
-    const float init_pos_[3];
+    double init_pos_[3];
 };
 
 

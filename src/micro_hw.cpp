@@ -30,6 +30,7 @@ int Micro_hw::motor_init()
         const std::string motor_name = config_id_[i]["name"];
         const int id = config_id_[i]["id"];
         
+        init_pos_[i] = config_id_[i]["init_pos"];
         std::shared_ptr<MyDriver> motor_poll(new MyDriver(ser_port_,id,motor_name));
         motor_.push_back(motor_poll);
     }
@@ -60,6 +61,7 @@ int Micro_hw::hardware_init()
             jnt_st_int_.getHandle(config_id_[joint_id]["name"]),&joint_[joint_id].cmd.eft
         );
         eft_jnt_int_.registerHandle(joint_handle_effort);
+        joint_[joint_id].cmd.pos = init_pos_[joint_id];
     }
     registerInterface(&jnt_st_int_);
     registerInterface(&pos_jnt_int_);

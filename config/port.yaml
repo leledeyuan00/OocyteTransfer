@@ -1,8 +1,14 @@
 port: 0
 config_id:
+  # x
   - name: motor1
     id: 0
+    init_pos: 11.0
+  # y
   - name: motor2
     id: 1
+    init_pos: 22.5
+  # z
   - name: motor3
     id: 2
+    init_pos: 5.0
