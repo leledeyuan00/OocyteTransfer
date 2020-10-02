@@ -1,11 +1,14 @@
 #include "vision_servo.h"
 
-VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),init_pos_{7,29,5}
+VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),init_pos_{5,26,12}
 {
     jaco_raw_.resize(2,2);
-    pid_controllers_.push_back(control_toolbox::Pid(0.1,0,0)); //x
-    pid_controllers_.push_back(control_toolbox::Pid(0.1,0,0)); //y
+    pid_controllers_.push_back(control_toolbox::Pid(0.05,0,0.001)); //x
+    pid_controllers_.push_back(control_toolbox::Pid(0.05,0,0.001)); //y
     start_time_ = 0;
+    fsmc_ = 0;
+    parse_new_pixel_ = false;
+    transfer_case_ = false;
     init();
 }
 
@@ -13,6 +16,7 @@ void VisionServo::init()
 {
     camera_sub_ = nh_.subscribe("/camera_pub", 10, &VisionServo::cameraCallback,this);
     joint_sub_ = nh_.subscribe("/joint_states", 10, &VisionServo::jointCallback,this);
+    state_machine_srv_ = nh_.advertiseService("/servo_sm", &VisionServo::switch_state_machine_service,this);
     motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint3_position_controller/command", 10));
     motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint2_position_controller/command", 10));
     motor_pub_.push_back(nh_.advertise<std_msgs::Float64>("/joint1_position_controller/command", 10));
@@ -34,14 +38,23 @@ void VisionServo::init()
     }  
 }
 
+bool VisionServo::switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res)
+{
+    fsmc_ = req.cmd;
+    res.success = true;
+    return true;
+}
+
 void VisionServo::cameraCallback(const micro_manipulate::pospub &msg)
 {
-    
+    static float last_error[2] = {0,0};
     joint_[0].vis_stat = msg.carrying[1];
     joint_[1].vis_stat = msg.carrying[0];
-    joint_[0].error = (msg.carrying[1] - msg.pippet[1]);
-    joint_[1].error = (msg.carrying[0] - msg.pippet[0]);
-    start_time_ = 0;
+    joint_[0].error = (msg.carrying[1] - (msg.pippet[1]-15)) * 0.5 + (last_error[0] * 0.5);
+    joint_[1].error = (msg.carrying[0] - (msg.pippet[0]-5)) * 0.5 + (last_error[1] * 0.5);
+    parse_new_pixel_ = true;
+    last_error[0] = joint_[0].error;
+    last_error[1] = joint_[1].error;
     // ROS_INFO("Eror is %f, %f",joint_[0].error,joint_[1].error);
     // ROS_INFO("peppet is [%f %f] \r\n carrying is [%f %f]\r\n", msg.pippet[0],msg.pippet[1],msg.carrying[0],msg.carrying[1]);
 }
@@ -134,43 +147,127 @@ void VisionServo::run()
 {
     int init_cout = 0;
     bool init_flag= false;
-    float loop_duration = 0.01;
+    float loop_duration = 0.033;
     float rate = 1.0/loop_duration;
     ros::Rate loop_rate(rate);
     ros::Time last_time,curr_time;
     ros::Duration control_duration;
-    // for Catch a Jacobian raw
-    calibrate();
+    float start_state[2];
+    Eigen::Vector2f pixel_error_temp;
 
     // run loop
     while (ros::ok())
     {
         /* code for loop body */
-        // calibrate
-        curr_time = ros::Time::now();
-        control_duration = curr_time - last_time;
-        // for a stable loop duration
-        if (init_cout > 10 && !init_flag)
+        switch (fsmc_)
         {
-            init_flag = true;
-        }
-        else init_cout++;
+        case 0:
+            {
+                // calibrate
+                curr_time = ros::Time::now();
+                control_duration = curr_time - last_time;
+                // for a stable loop duration
+                if (init_cout > 80 && !init_flag)
+                {
+                    // for Catch a Jacobian raw
+                    calibrate();
+                    init_flag = true;
+                }
+                else init_cout++;
 
-        // pid error
-        if(init_flag)
+                // pid error
+                if(init_flag)
+                {
+
+                    // if(parse_new_pixel_)
+                    // {
+                    //     parse_new_pixel_ = false;
+                    //     start_time_ = 0.1;
+                    //     for (size_t i = 0; i < pid_controllers_.size(); i++)
+                    //     {
+                    //         start_state[i] = joint_[i].stat;
+                    //         pixel_error_(i) = pid_controllers_[i].computeCommand(joint_[i].error,control_duration);
+                    //     }
+                    // }
+                    // else{
+                    //     start_time_ += 0.3;
+                    // }
+                    // if(start_time_ <= 1.0)
+                    // {
+                    //     pixel_error_temp = pixel_error_*start_time_;
+                    //     motor_error_ = jaco_raw_.inverse() * pixel_error_temp;
+                    //     for (size_t i = 0; i < pid_controllers_.size(); i++)
+                    //     {
+                    //         joint_[i].cmd = start_state[i] - motor_error_[i];
+                    //     }
+                    // }
+                    for (size_t i = 0; i < pid_controllers_.size(); i++)
+                        {
+                            // start_state[i] = joint_[i].stat;
+                            pixel_error_(i) = pid_controllers_[i].computeCommand(joint_[i].error,control_duration);
+                        }
+                    motor_error_ = jaco_raw_.inverse() * pixel_error_;
+                    joint_[0].cmd = joint_[0].stat - motor_error_[0];
+                    joint_[1].cmd = joint_[1].stat - motor_error_[1];
+                    std::cout << "motor_error after jacobian \r\n" << motor_error_ << std::endl;
+                    last_time = curr_time;
+                }       
+            break;
+            }
+        case 1 :
+        {
+            for (size_t i = 0; i < 3; i++)
+            {
+                joint_[i].cmd = init_pos_[i];
+            }
+            break;
+        }
+        case 2 :
+        {
+            break;
+        }
+        case 3:
         {
             for (size_t i = 0; i < pid_controllers_.size(); i++)
             {
-                pixel_error_(i) = pid_controllers_[i].computeCommand(joint_[i].error,control_duration);
+                joint_[i].cmd = init_pos_[i];
             }
-            motor_error_ = jaco_raw_.inverse() * pixel_error_;
-            std::cout << "motor_error after jacobian \r\n" << motor_error_ << std::endl;
-            joint_[0].cmd = joint_[0].stat - motor_error_[0];
-            joint_[1].cmd = joint_[1].stat - motor_error_[1];
-            pub_msgs();
+            joint_[2].cmd = init_pos_[2] - 5;
+            break;
+        }
+        case 4:
+        {
+            if(!transfer_case_){
+                transfer_case_ = true;
+                transfer_start_time_ = 0;
+                transfer_start_pos_ = joint_[0].stat;
+            }
+            if (transfer_start_time_ < 20)
+            {
+                joint_[0].cmd = transfer_start_pos_ - (2 *(transfer_start_time_ /20));
+                transfer_start_time_ += loop_duration;
+            }
+            break;
+        }
+        case 5:
+        {
+            transfer_case_ = false;
+            break;
+        }
+        case 6:
+        {
+            joint_[0].cmd = transfer_start_pos_;
+            break;
         }
         
-        last_time = curr_time;
+        default:
+
+            break;
+        }
+        
+        pub_msgs();
+        
+        
         ros::spinOnce();
         loop_rate.sleep();
     }

@@ -301,7 +301,7 @@ class FindPosition:
         pub_msgs = pospub()
         pub_msgs.pippet = (self._pipet_pos[0],self._pipet_pos[1])
 
-        rate = rospy.Rate(40)
+        rate = rospy.Rate(30)
         while not rospy.is_shutdown():
             start_time = time.time() 
             img = self.camera_acquire()

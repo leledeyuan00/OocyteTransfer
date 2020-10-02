@@ -53,6 +53,10 @@ private:
 
     rm_axis_handle handle_;
 
+    double pos_cmd_;
+    double vel_cmd_;
+    double eft_cmd_;
+
     double pos_;
     double vel_;
     double eft_;

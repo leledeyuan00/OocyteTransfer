@@ -24,19 +24,21 @@ int MyDriver::init()
 
 void MyDriver::write(double cmd,ros::Duration elapsed_time)
 {
+    pos_cmd_ = cmd;
     rm_move_absolute(handle_,(float)cmd,100,100,100,0.001);
     ros::Duration(cm_sleep).sleep();
 }
 
 int MyDriver::read(double *pos,double *vel,double *eft)
 {
-    pos_ = (double)rm_read_current_position(handle_);
-    vel_ = (double)rm_read_current_velocity(handle_);
-    eft_ = (double)rm_read_current_torque(handle_);
+    // pos_ = (double)rm_read_current_position(handle_);
+    // vel_ = (double)rm_read_current_velocity(handle_);
+    // eft_ = (double)rm_read_current_torque(handle_);
+    pos_ = pos_cmd_;
 
     *pos = pos_;
-    *vel = vel_;
-    *eft = eft_;
+    // *vel = vel_;
+    // *eft = eft_;
     ros::Duration(cm_sleep).sleep();
     return 0;
 }

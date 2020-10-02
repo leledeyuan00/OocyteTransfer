@@ -62,6 +62,7 @@ add_message_files(
 add_service_files(
   FILES
   camera_cmd.srv
+  switch_machine.srv
 )
 
 ## Generate actions in the 'action' folder

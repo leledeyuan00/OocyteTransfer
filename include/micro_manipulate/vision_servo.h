@@ -19,6 +19,7 @@
 
 /* privita */
 #include "micro_manipulate/pospub.h"
+#include "micro_manipulate/switch_machine.h"
 
 struct joint
 {
@@ -48,6 +49,8 @@ private:
     std::vector<ros::Publisher> motor_pub_;    
     micro_manipulate::pospub camera_msgs_;
 
+    ros::ServiceServer state_machine_srv_;    
+
     std::vector<control_toolbox::Pid> pid_controllers_;
 
     /* algorithm */
@@ -55,12 +58,18 @@ private:
     Eigen::Matrix2f jaco_raw_;
     Eigen::Vector2f pixel_error_;
     Eigen::Vector2f motor_error_;
+    bool parse_new_pixel_;
     float start_time_;
+    int fsmc_;
+    bool transfer_case_;
+    float transfer_start_time_;
+    float transfer_start_pos_;
     /* function */
     void init();
     void cameraCallback(const micro_manipulate::pospub &msg);
     void jointCallback(const sensor_msgs::JointStateConstPtr &msg);
     void pub_msgs(void);
+    bool switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res);
 
     const float init_pos_[3];
 };
