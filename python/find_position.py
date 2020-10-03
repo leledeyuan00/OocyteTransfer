@@ -278,11 +278,12 @@ class FindPosition:
             sys.exit(1)
         strSN = dev_info_list[0].get("sn")
         self._cam = self._device_manager.open_device_by_sn(strSN)
-         # set exposure
-        # self._cam.ExposureTime.set(10000)
+        
+        # set exposure
+        self._cam.ExposureTime.set(10000)
 
         # set gain
-        # self._cam.Gain.set(10.0)
+        self._cam.Gain.set(10.0)
 
         # send software trigger command
         self._cam.TriggerMode.set(gx.GxSwitchEntry.ON)

@@ -153,6 +153,7 @@ void VisionServo::run()
     ros::Duration control_duration;
     float start_state[2];
     Eigen::Vector2f pixel_error_temp;
+    float error_threshold = 1;
 
     // run loop
     while (ros::ok())
@@ -200,10 +201,15 @@ void VisionServo::run()
                     //         joint_[i].cmd = start_state[i] - motor_error_[i];
                     //     }
                     // }
+
                     for (size_t i = 0; i < pid_controllers_.size(); i++)
                         {
                             // start_state[i] = joint_[i].stat;
                             pixel_error_(i) = pid_controllers_[i].computeCommand(joint_[i].error,control_duration);
+                            if(pixel_error_(i) >=error_threshold)
+                                pixel_error_(i) = error_threshold;
+                            else if(pixel_error_(i)<=-error_threshold)
+                                pixel_error_(i) = -error_threshold;
                         }
                     motor_error_ = jaco_raw_.inverse() * pixel_error_;
                     joint_[0].cmd = joint_[0].stat - motor_error_[0];

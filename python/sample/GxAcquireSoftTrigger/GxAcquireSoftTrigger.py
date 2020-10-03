@@ -90,10 +90,10 @@ def main():
     cam = device_manager.open_device_by_index(1)
 
     # set exposure
-    # cam.ExposureTime.set(10000)
+    cam.ExposureTime.set(10000)
 
     # set gain
-    # cam.Gain.set(10.0)
+    cam.Gain.set(10.0)
 
     # send software trigger command
     cam.TriggerMode.set(gx.GxSwitchEntry.ON)

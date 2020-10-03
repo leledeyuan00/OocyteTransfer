@@ -2,7 +2,7 @@
 #include "std_msgs/Float64.h"
 #include <ros/ros.h>
 
-const static double center[3] = {10.4,24.6,8.3};
+const static double center[3] = {22.7,18,5.3};
 
 int main(int argc, char* argv[])
 {
@@ -15,13 +15,13 @@ int main(int argc, char* argv[])
   micro_manipulate::camera_cmd camera_srv;
 
   ros::Publisher motor_pub1;
-  motor_pub1 = nh.advertise< std_msgs::Float64>("/joint3_position_controller/command", 10);
+  motor_pub1 = nh.advertise< std_msgs::Float64>("/joint1_position_controller/command", 10);
 
   ros::Publisher motor_pub2;
   motor_pub2 = nh.advertise< std_msgs::Float64>("/joint2_position_controller/command", 10);
 
   ros::Publisher motor_pub3;
-  motor_pub3 = nh.advertise< std_msgs::Float64>("/joint1_position_controller/command", 10);
+  motor_pub3 = nh.advertise< std_msgs::Float64>("/joint3_position_controller/command", 10);
 
   std_msgs::Float64 motor_cmd[3];
 
@@ -32,9 +32,9 @@ int main(int argc, char* argv[])
     cmd[i] = center[i];
   }
 
-  double size = 3;
-  double step = 0.5;
-  double depth_step = 0.2;
+  double size = 1;
+  double step = 0.1;
+  double depth_step = 0.1;
   double depth = 2;
   int loop =1;
 
@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     cmd[1] = center[1];
     loop = 1;
     dir = 0;
-    while ((loop*step)<=size)
+    while ((loop*step)<=size && ros::ok())
     {
       switch (dir)
       {
@@ -84,6 +84,7 @@ int main(int argc, char* argv[])
           {
             dir = 0;
             loop++;
+            ros::Duration(1).sleep();
           }
           break;
         }

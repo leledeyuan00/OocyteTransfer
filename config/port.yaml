@@ -3,12 +3,12 @@ config_id:
   # x
   - name: motor1
     id: 0
-    init_pos: 11.0
+    init_pos: 23.5
   # y
   - name: motor2
     id: 1
-    init_pos: 22.5
+    init_pos: 17.5
   # z
   - name: motor3
     id: 2
-    init_pos: 5.0
+    init_pos: 5.3
