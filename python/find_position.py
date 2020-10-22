@@ -18,6 +18,8 @@ from PIL import Image
 import rospy
 from micro_manipulate.msg import *
 
+from micro_manipulate.srv import *
+
 @jit(nopython=True)
 def carrying_for1(gray,roi_col_range0,roi_col_range1,roi_row_range0,roi_row_range1,carrying_ignor_thre,pipet_img):
     last_col_sum = 0
@@ -85,6 +87,7 @@ class FindPosition:
         carrying_ignor_thre(int): 忽略载杆图像像素的灰度阈值。灰度值大于该值认为是白色背景(255)
         carrying_pos(List[int]): 载杆的位置，调用 `get_carrying_pos()` 后生成[row, col]
     """
+    _save_pic = False
 
     def __init__(self) -> None:
         self._roi_center: List[int] = [0, 0]
@@ -99,6 +102,7 @@ class FindPosition:
         self._resized_size : tuple = (600,800)
         self.camera_init()
         self.find_init()
+        
 
     @property
     def roi_center(self) -> List[int]:
@@ -298,10 +302,19 @@ class FindPosition:
         if numpy_image is None:
             return None
         else:
+            if self._save_pic:
+                image = Image.fromarray(numpy_image, 'L')
+                image.save("pics/data.png")
+                self._save_pic = False
+
             img = cv2.resize(numpy_image, (self._resized_size[1], self._resized_size[0]))
             self.roi_center = [int(self._resized_size[0] * 1 / 2), int(self._resized_size[1]*1 / 2)]
             self.roi_box = [int(self._resized_size[0]*2/3), int(self._resized_size[1]*2/3)]
         return img
+    
+    def handle_camera_cmd(self,req):
+        self._save_pic = True
+        return camera_cmdResponse(True)
 
     def ros_init(self):
         rospy.init_node("cameraPub")
@@ -310,6 +323,8 @@ class FindPosition:
         camera_pub = rospy.Publisher("camera_pub", pospub, queue_size=10)
         pub_msgs = pospub()
         pub_msgs.pippet = (self._pipet_pos[0],self._pipet_pos[1])
+        camera_srv = rospy.Service('camera_cmd', camera_cmd, self.handle_camera_cmd)
+        print("Ready to receive camera cmd.")
 
         rate = rospy.Rate(30)
         while not rospy.is_shutdown():

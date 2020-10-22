@@ -3,13 +3,17 @@
 VisionServo::VisionServo(ros::NodeHandle &nh):nh_(nh),name_("micro_manipulate")
 {
     jaco_raw_.resize(2,2);
-    pid_controllers_.push_back(control_toolbox::Pid(0.05,0,0.001)); //x
-    pid_controllers_.push_back(control_toolbox::Pid(0.05,0,0.001)); //y
+    pid_controllers_.push_back(control_toolbox::Pid(0.025,0,0.001)); //x
+    pid_controllers_.push_back(control_toolbox::Pid(0.025,0,0.001)); //y
     start_time_ = 0;
     fsmc_ = 0;
     parse_new_pixel_ = false;
     transfer_case_ = false;
+    away_pos_[0] = 0;
+    away_pos_[1] = 0;
+    away_pos_[2] = 30;
     init();
+
 }
 
 void VisionServo::init()
@@ -39,7 +43,28 @@ void VisionServo::init()
 
 bool VisionServo::switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res)
 {
-    fsmc_ = req.cmd;
+    int cmd;
+    cmd = req.cmd;
+    if(cmd == 7 || cmd ==8 || cmd ==9)
+    {
+        if(cmd == 7)
+        {
+            vel_ += 0.001;
+        }
+        else if(cmd == 8)
+        {
+            vel_ -= 0.001;
+        }
+        else if(cmd == 9)
+        {
+            vel_ = 0;
+        }
+        fsmc_ = 7;
+    }
+    else{
+        fsmc_ = cmd;
+    }
+
     res.success = true;
     return true;
 }
@@ -49,8 +74,10 @@ void VisionServo::cameraCallback(const micro_manipulate::pospub &msg)
     static float last_error[2] = {0,0};
     joint_[0].vis_stat = msg.carrying[1];
     joint_[1].vis_stat = msg.carrying[0];
-    joint_[0].error = (msg.carrying[1] - (msg.pippet[1]-15)) * 0.5 + (last_error[0] * 0.5);
-    joint_[1].error = (msg.carrying[0] - (msg.pippet[0]-5)) * 0.5 + (last_error[1] * 0.5);
+    // joint_[0].error = (msg.carrying[1] - (msg.pippet[1] )) * 0.5 + (last_error[0] * 0.5);
+    // joint_[1].error = (msg.carrying[0] - (msg.pippet[0] )) * 0.5 + (last_error[1] * 0.5);
+    joint_[0].error = (msg.carrying[1] - (301.0 ))* 0.5 + (last_error[0] * 0.5);
+    joint_[1].error = (msg.carrying[0] - (374.0 ))* 0.5 + (last_error[1] * 0.5);
     parse_new_pixel_ = true;
     last_error[0] = joint_[0].error;
     last_error[1] = joint_[1].error;
@@ -153,7 +180,7 @@ void VisionServo::run()
     ros::Duration control_duration;
     float start_state[2];
     Eigen::Vector2f pixel_error_temp;
-    float error_threshold = 1;
+    float error_threshold = 100;
 
     // run loop
     while (ros::ok())
@@ -223,12 +250,17 @@ void VisionServo::run()
         {
             for (size_t i = 0; i < 3; i++)
             {
-                joint_[i].cmd = init_pos_[i];
+                joint_[i].cmd = away_pos_[i];
             }
             break;
         }
         case 2 :
         {
+            for (size_t i = 0; i < pid_controllers_.size(); i++)
+            {
+                joint_[i].cmd = init_pos_[i];
+            }
+            joint_[2].cmd = init_pos_[2] - 0.5;
             break;
         }
         case 3:
@@ -237,7 +269,7 @@ void VisionServo::run()
             {
                 joint_[i].cmd = init_pos_[i];
             }
-            joint_[2].cmd = init_pos_[2] - 5;
+            joint_[2].cmd = init_pos_[2];
             break;
         }
         case 4:
@@ -264,7 +296,15 @@ void VisionServo::run()
             joint_[0].cmd = transfer_start_pos_;
             break;
         }
-        
+        case 7:
+        {
+            joint_[0].cmd = joint_[0].stat + vel_;
+            break;
+        }
+        case 8:
+        {
+            break;
+        }
         default:
 
             break;

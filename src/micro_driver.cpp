@@ -16,7 +16,7 @@ int MyDriver::init()
 
     rm_set_servo_on_off(handle_,true);
     rm_reset_error(handle_);
-    rm_go_home(handle_);
+    // rm_go_home(handle_);
     ros::Duration(cm_sleep).sleep();
 
     std::cout << "initializing" << std::endl;

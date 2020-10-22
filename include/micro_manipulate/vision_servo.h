@@ -50,6 +50,7 @@ private:
     micro_manipulate::pospub camera_msgs_;
     XmlRpc::XmlRpcValue config_id_;
     std::string name_;
+    double away_pos_[3];
 
 
     ros::ServiceServer state_machine_srv_;    
@@ -75,6 +76,7 @@ private:
     bool switch_state_machine_service(micro_manipulate::switch_machine::Request &req, micro_manipulate::switch_machine::Response &res);
 
     double init_pos_[3];
+    float vel_;
 };
 
 
